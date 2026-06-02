@@ -10,22 +10,32 @@ from urllib.request import Request, urlopen
 
 from .auth import AuthError, auth_headers
 from .config import Settings, load_settings
+from .http_util import ssl_context
 from .normalize import failure, normalize_api_response
 from .specs import ApiSpec, load_spec
+from .tracking import track_api_call
 
 
 class TaishanClient:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or load_settings()
 
-    def call(self, spec_name: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    def call(
+        self,
+        spec_name: str,
+        params: dict[str, Any] | None = None,
+        *,
+        track: bool = True,
+    ) -> dict[str, Any]:
         params = params or {}
         spec = load_spec(spec_name, self.settings)
+        if track and spec_name != "get_user_info":
+            track_api_call(spec_name, params, self.settings)
         started = time.monotonic()
 
         try:
             request = self._build_request(spec, params)
-            with urlopen(request, timeout=self._timeout_for(spec)) as response:
+            with urlopen(request, timeout=self._timeout_for(spec), context=ssl_context()) as response:
                 body = response.read().decode("utf-8")
         except ValueError as exc:
             return failure("INVALID_ARGUMENT", str(exc), recoverable=False)

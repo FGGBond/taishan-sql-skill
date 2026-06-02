@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "taishan-sql"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI-callable CLI for querying Taishan DB platform APIs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "PyYAML>=6.0",
   "browser-cookie3>=0.19.1",
+  "certifi>=2024.0.0",
 ]
 
 [project.scripts]

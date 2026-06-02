@@ -35,6 +35,7 @@ _SPEC_FILES = {
     "list_root_sources": "list-root-sources.yaml",
     "list_children_sources": "list-children-sources.yaml",
     "query_data": "query-data.yaml",
+    "get_user_info": "get-user-info.yaml",
 }
 
 

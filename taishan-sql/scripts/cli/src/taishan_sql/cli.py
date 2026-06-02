@@ -10,6 +10,8 @@ from .client import TaishanClient
 from .config import load_settings
 from .normalize import failure, success
 from .resolver import resolve_database
+from .sql_guard import is_dql
+from .user_info import get_user_erp
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -90,6 +92,7 @@ def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
             "cookie_count": cookie_result.cookie_count,
             "cookie_domains": cookie_result.domains,
             "specs_dir": str(settings.specs_dir),
+            "erp": get_user_erp(settings),
         }
     )
 
@@ -107,6 +110,10 @@ def handle_resolve_db(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def handle_query(args: argparse.Namespace) -> dict[str, Any]:
+    dql_ok, dql_message = is_dql(args.sql)
+    if not dql_ok:
+        return failure("NOT_DQL", dql_message, recoverable=False)
+
     client = TaishanClient()
     if args.keyword:
         resolved = resolve_database(client, args.keyword, args.env)

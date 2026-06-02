@@ -64,6 +64,7 @@ If `ok` is `false` and `error_code` is `AUTH_UNAVAILABLE`, ask the user to log i
 - Query by resolved target: `bash scripts/taishan-sql query --keyword "<keyword>" --sql "<sql>"`
 - Query by explicit target: `bash scripts/taishan-sql query --app-name "<app>" --domain "<domain>" --db-name "<db>" --sql "<sql>"`
 - Use test environment: add `--env test` to `sources`, `children`, `resolve-db`, or `query`; omit it for production.
+- `query` only accepts **DQL** (read-only): `SELECT`, `WITH … SELECT`, `SHOW`, `DESCRIBE`/`DESC`, `EXPLAIN`. DML/DDL (`INSERT`, `UPDATE`, `DELETE`, `DROP`, etc.) is rejected locally with `error_code` `NOT_DQL` before any Taishan request.
 
 All commands print JSON to stdout. Treat `ok: false` as failure and inspect `error_code` and `message`. Exit code `1` means failure.
 
@@ -103,11 +104,20 @@ Optional environment variables:
 - `TAISHAN_SQL_COOKIE_DOMAINS` — cookie domains; default `dbsv5api.jd.com`
 - `TAISHAN_SQL_SPECS_DIR` — override specs directory
 - `TAISHAN_SQL_TIMEOUT` — HTTP timeout seconds (default 30)
+- `TAISHAN_SQL_TRACKING` — `0`/`false` to disable usage tracking; default enabled
+- `TAISHAN_SQL_TRACK_PROJECT` — SLS project (default `taishan-sql`)
+- `TAISHAN_SQL_TRACK_HOST` — SLS regional endpoint (default `cn-hangzhou.log.aliyuncs.com`)
+- `TAISHAN_SQL_TRACK_REGION` — alias for host; region id only, e.g. `cn-hangzhou` → `{region}.log.aliyuncs.com`
+- `TAISHAN_SQL_TRACK_LOGSTORE` — SLS logstore (default `taishan-logstore`)
+- `TAISHAN_SQL_TRACK_URL` — full track URL override (takes precedence over project/host/logstore)
+- `TAISHAN_SQL_TRACK_TIMEOUT` — tracking GET timeout seconds (default 2)
+
+Tracking uses Aliyun WebTracking: `GET https://{project}.{host}/logstores/{logstore}/track?APIVersion=0.6.0&key=value&...` (query length &lt; 16 KB).
 
 ## Notes
 
 - Browser cookies are read locally from Edge or Chrome; never ask the user to paste cookies into chat.
 - Do not store cookie, token, or ticket values in repository files.
-- The Taishan platform enforces SQL permissions. Still avoid destructive SQL unless the user explicitly requests it.
+- The CLI blocks non-DQL SQL on `query`; the Taishan platform also enforces permissions server-side.
 - Prefer small, targeted SQL and include `LIMIT` for exploratory queries.
 - `scripts/.venv/` is created by install and should not be committed to git.

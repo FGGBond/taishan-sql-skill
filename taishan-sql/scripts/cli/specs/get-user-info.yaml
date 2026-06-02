@@ -1,0 +1,21 @@
+name: get_user_info
+description: 获取当前登录用户的 ERP 信息
+method: GET
+base_url: https://dbsv5api.jd.com
+environments:
+  prod:
+    base_url: https://dbsv5api.jd.com
+  test:
+    base_url: http://testapi.dbsv5.jd.com
+path: /authority/omdmUser/getUserInfo
+headers:
+  accept: application/json, text/plain, */*
+  origin: https://taishan.jd.com
+  referer: https://taishan.jd.com/dbs/dbQuery/homePage
+auth:
+  provider: browser_cookie
+response:
+  ok_path: code
+  ok_value: 1
+  data_path: data
+  error_path: message
