@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taishan-sql"
+version = "0.1.0"
+description = "AI-callable CLI for querying Taishan DB platform APIs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "browser-cookie3>=0.19.1",
+]
+
+[project.scripts]
+taishan-sql = "taishan_sql.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+taishan_sql = ["py.typed", "spec_data/*.yaml"]

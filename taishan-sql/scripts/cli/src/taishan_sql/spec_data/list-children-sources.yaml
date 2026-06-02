@@ -1,0 +1,27 @@
+name: list_children_sources
+description: 根据 Taishan 数据源树节点 ID 获取下一级应用、域名或数据库节点
+method: GET
+base_url: https://dbsv5api.jd.com
+environments:
+  prod:
+    base_url: https://dbsv5api.jd.com
+  test:
+    base_url: http://testapi.dbsv5.jd.com
+path: /dbquery/listChildren
+query:
+  id:
+    param: id
+    type: string
+    required: true
+headers:
+  accept: application/json, text/plain, */*
+  origin: https://taishan.jd.com
+  referer: https://taishan.jd.com/dbs/dbQuery/homePage
+auth:
+  provider: browser_cookie
+response:
+  ok_path: code
+  ok_value: 1
+  data_path: data
+  data_encoding: json_string
+  error_path: message

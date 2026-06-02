@@ -1,0 +1,27 @@
+name: {{SPEC_NAME}}
+description: {{SPEC_DESCRIPTION}}
+method: {{METHOD}}
+base_url: {{BASE_URL}}
+{{ENVIRONMENTS_BLOCK}}
+path: {{PATH}}
+headers:
+  accept: application/json, text/plain, */*
+  origin: {{ORIGIN}}
+  referer: {{REFERER}}
+auth:
+  provider: browser_cookie
+{{QUERY_BLOCK}}
+{{REQUEST_BODY_BLOCK}}
+response:
+  ok_path: {{OK_PATH}}
+  ok_value: {{OK_VALUE}}
+  data_path: {{DATA_PATH}}
+  error_path: {{ERROR_PATH}}
+{{EXTRA_RESPONSE_FIELDS}}
+  agent_output:
+    type: {{AGENT_OUTPUT_TYPE}}   # list | object | rows
+    item_fields: {{AGENT_ITEM_FIELDS}}
+    rename: {{AGENT_RENAME}}
+    omit_raw: true
+safety:
+  timeout_seconds: 30

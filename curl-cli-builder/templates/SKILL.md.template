@@ -1,0 +1,62 @@
+---
+name: {{SKILL_NAME}}
+description: {{SKILL_DESCRIPTION}}
+---
+
+# {{SKILL_TITLE}}
+
+## Setup
+
+This skill includes a bundled CLI under `scripts/cli`. If `{{CLI_NAME}}` is unavailable, install it first:
+
+```bash
+bash scripts/install.sh
+```
+
+Then verify authentication:
+
+```bash
+{{CLI_NAME}} doctor
+```
+
+## How to parse CLI output
+
+Every command prints **one JSON object** on stdout. Exit code `0` means success.
+
+1. Parse stdout as JSON.
+2. If `ok` is `false`, **stop** and follow `next_step`.
+3. If `ok` is `true`, read `data` using the field guide for that command below.
+
+Do not parse stderr. Do not assume fields not listed for a command.
+
+## Commands
+
+{{COMMANDS_WITH_PARSE_GUIDES}}
+
+## Failure handling
+
+| `error_code` | Typical action |
+|--------------|----------------|
+| `AUTH_UNAVAILABLE` / `AUTH_EXPIRED` | Follow `next_step`; usually re-run `doctor` after user logs in |
+| `INVALID_ARGUMENT` | Fix flags per `--help` |
+| `API_ERROR` | Read `message`; adjust inputs or explain to user |
+| `AMBIGUOUS_TARGET` | Use `candidates` if present; ask user to choose |
+
+Always prefer the command-specific `next_step` string over guessing.
+
+## Workflow
+
+For natural language tasks:
+
+1. Run `{{CLI_NAME}} doctor`.
+2. Pick the command whose **Parse on success** fields match the user's goal.
+3. Chain commands using documented "Next" hints until done.
+
+{{ORCHESTRATION_LINK}}
+
+## Notes
+
+- Browser cookies are read locally; never ask the user to paste cookies into chat.
+- Do not store cookie, token, or ticket values in repository files.
+- Prefer minimal, targeted calls; validate with `doctor` after auth errors.
+- Use `--verbose` only when debugging latency; use `--include-raw` only when diagnosing API shape.

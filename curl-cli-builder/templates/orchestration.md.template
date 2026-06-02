@@ -1,0 +1,9 @@
+# Suggested orchestrations
+
+These sequences reflect **user-provided** combination intent. The Agent may adapt steps when the task differs.
+
+{{SCENARIOS}}
+
+## General rule
+
+If a scenario does not apply, use individual CLI commands from `SKILL.md` instead of forcing this flow.

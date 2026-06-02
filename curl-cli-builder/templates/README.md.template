@@ -1,0 +1,20 @@
+# {{SKILL_TITLE}} Skill
+
+Bundled skill package with `{{CLI_NAME}}` CLI.
+
+## Install
+
+```bash
+bash scripts/install.sh
+{{CLI_NAME}} doctor
+```
+
+## Distribute
+
+Zip this directory and place it in the target tool's skills folder.
+
+```bash
+zip -r {{SKILL_NAME}}.zip {{SKILL_NAME}}/
+```
+
+See `SKILL.md` for Agent usage. See `orchestration.md` only if present for user-suggested tool chains.

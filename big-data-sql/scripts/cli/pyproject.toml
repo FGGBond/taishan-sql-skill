@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "big-data-sql"
+version = "0.1.0"
+description = "AI-callable CLI for JD big-data platform SQL execution"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "browser-cookie3>=0.19.1",
+]
+
+[project.scripts]
+big-data-sql = "big_data_sql.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+big_data_sql = ["py.typed"]

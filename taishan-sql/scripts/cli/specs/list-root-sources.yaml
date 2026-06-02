@@ -1,0 +1,25 @@
+name: list_root_sources
+description: 获取当前 ERP 账号有权限访问的 Taishan 数据源根节点列表
+method: GET
+base_url: https://dbsv5api.jd.com
+environments:
+  prod:
+    base_url: https://dbsv5api.jd.com
+  test:
+    base_url: http://testapi.dbsv5.jd.com
+path: /workflow/wfdbquery/listRoot
+query:
+  systemType:
+    value: origin
+headers:
+  accept: application/json, text/plain, */*
+  origin: https://taishan.jd.com
+  referer: https://taishan.jd.com/dbs/dbQuery/homePage
+auth:
+  provider: browser_cookie
+response:
+  ok_path: code
+  ok_value: 1
+  data_path: data
+  data_encoding: json_string
+  error_path: message

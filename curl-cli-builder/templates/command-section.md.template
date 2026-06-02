@@ -1,0 +1,13 @@
+### `{{CLI_COMMAND}}`
+
+{{COMMAND_DESCRIPTION}}
+
+```bash
+{{CLI_NAME}} {{CLI_COMMAND}} {{COMMAND_ARGS}}
+```
+
+**Parse on success**
+
+{{PARSE_BULLETS}}
+
+{{NEXT_STEP_LINE}}

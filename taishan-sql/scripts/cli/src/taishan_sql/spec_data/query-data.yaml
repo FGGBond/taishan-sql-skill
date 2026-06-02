@@ -1,0 +1,48 @@
+name: query_data
+description: 在指定 Taishan 数据源上执行 SQL 并返回结构化查询结果
+method: POST
+base_url: https://dbsv5api.jd.com
+environments:
+  prod:
+    base_url: https://dbsv5api.jd.com
+  test:
+    base_url: http://testapi.dbsv5.jd.com
+path: /dbquery/queryData
+headers:
+  accept: application/json, text/plain, */*
+  content-type: application/json;charset=UTF-8
+  origin: https://taishan.jd.com
+  referer: https://taishan.jd.com/dbs/dbQuery/homePage
+auth:
+  provider: browser_cookie
+request:
+  body:
+    appName:
+      param: app_name
+      type: string
+      required: true
+    dbName:
+      param: db_name
+      type: string
+      required: true
+    domain:
+      param: domain
+      type: string
+      required: true
+    sql:
+      param: sql
+      type: string
+      required: true
+    isDesensitization:
+      param: desensitize
+      type: integer
+      default: 1
+response:
+  ok_path: code
+  ok_value: 1
+  data_path: data.dataList
+  execute_time_path: data.executeTime.executeTime
+  error_path: message
+safety:
+  timeout_seconds: 30
+  audit_sql: true
