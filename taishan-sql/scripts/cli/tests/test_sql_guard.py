@@ -33,6 +33,10 @@ class SqlGuardTests(unittest.TestCase):
         ok, _ = is_dql("SHOW TABLES")
         self.assertTrue(ok)
 
+    def test_show_create_table_allowed(self) -> None:
+        ok, _ = is_dql("SHOW CREATE TABLE my_table")
+        self.assertTrue(ok)
+
 
 if __name__ == "__main__":
     unittest.main()

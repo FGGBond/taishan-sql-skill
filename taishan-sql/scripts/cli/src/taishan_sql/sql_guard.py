@@ -7,6 +7,10 @@ _DQL_START_KEYWORDS: Final[frozenset[str]] = frozenset(
     {"SELECT", "SHOW", "DESCRIBE", "DESC", "EXPLAIN", "WITH"}
 )
 
+_SHOW_CREATE_OBJECTS: Final[frozenset[str]] = frozenset(
+    {"TABLE", "VIEW", "FUNCTION", "PROCEDURE", "TRIGGER", "EVENT"}
+)
+
 _FORBIDDEN_KEYWORDS: Final[frozenset[str]] = frozenset(
     {
         "INSERT",
@@ -78,7 +82,20 @@ def _is_dql_statement(statement: str) -> tuple[bool, str]:
         allowed = ", ".join(sorted(_DQL_START_KEYWORDS))
         return False, f"仅允许 DQL（查询类 SQL），首关键字为 {first!r}，允许：{allowed}"
 
-    forbidden = [word for word in tokens if word.upper() in _FORBIDDEN_KEYWORDS]
+    allow_show_create = (
+        first == "SHOW"
+        and len(tokens) >= 3
+        and tokens[1].upper() == "CREATE"
+        and tokens[2].upper() in _SHOW_CREATE_OBJECTS
+    )
+
+    forbidden: list[str] = []
+    for idx, word in enumerate(tokens):
+        upper = word.upper()
+        if allow_show_create and idx == 1 and upper == "CREATE":
+            continue
+        if upper in _FORBIDDEN_KEYWORDS:
+            forbidden.append(word)
     if forbidden:
         return False, f"检测到非 DQL 关键字：{', '.join(sorted({w.upper() for w in forbidden}))}"
 
