@@ -68,8 +68,10 @@ bash scripts/big-data-sql doctor
 bash scripts/big-data-sql init
 ```
 
+- Resolves **your** ERP local git project via `getErpLocalProject.ajax` (not a shared default id).
 - Creates a dedicated script via platform `addScript` and saves `~/.config/big-data-sql/profile.json`.
 - Safe to rerun: skips if profile already exists.
+- Override git project: `BDP_SQL_GIT_PROJECT_ID=<id>` before `init`.
 - Use `bash scripts/big-data-sql init --force` if `run` fails with script/permission errors (creates a new `scriptFileId`).
 
 Success envelope: `ok: true`, `status: "initialized"`, `next_action: "run"`.
@@ -248,7 +250,11 @@ Install / Python issues: same pattern as taishan-sql — rerun `bash scripts/ins
 | `BDP_SQL_COOKIE_DOMAINS` | `dp.jd.com,scriptcenter.dp.jd.com,jd.com` | Cookie domains |
 | `BDP_SQL_OUTPUT_DIR` | `~/.cache/big-data-sql/runs` | Artifact root |
 | `BDP_SQL_PROFILE_PATH` | `~/.config/big-data-sql/profile.json` | Saved scriptFileId |
-| `BDP_SQL_GIT_PROJECT_ID` | `1000669346` | Git project for `init` / addScript |
+| `BDP_SQL_GIT_PROJECT_ID` | (auto) | Override git project; default from `getErpLocalProject` per logged-in ERP |
+| `BDP_SQL_MARKET_CODE` | — | Production account market (required for `run` if not in platform default) |
+| `BDP_SQL_ACCOUNT_CODE` | — | Auth account for queue |
+| `BDP_SQL_QUEUE_CODE` | — | YARN queue code |
+| `BDP_SQL_BUSINESS_LINE` | — | Business line from queue |
 | `BDP_SQL_SCRIPT_FILE_ID` | from profile | Override script id (skips init if set) |
 | `BDP_SQL_WAIT_TIMEOUT` | `120` | `run --wait` max seconds before returning `running` |
 | `BDP_SQL_ENGINE_TYPE` | `presto` | Default engine when `--engine` omitted |

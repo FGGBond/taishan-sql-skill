@@ -8,11 +8,13 @@ from typing import Any
 
 from .auth import AuthError, load_browser_cookies
 from .config import SUPPORTED_ENGINE_TYPES, load_settings, with_engine
+from .client import PlatformClient
 from .init_cmd import run_init
 from .normalize import failure, success
 from .profile_store import profile_status
 from .runner import SqlRunner
 from .tracking import track_cli_command
+from .project_info import extract_local_project
 from .user_info import get_user_erp
 
 
@@ -90,10 +92,13 @@ def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
         )
 
     prof = profile_status()
+    project_resp = PlatformClient(settings).get_erp_local_project(track=False)
+    local_project = extract_local_project(project_resp)
     return success(
         status="ready",
         message="认证与配置检查通过",
         erp=get_user_erp(settings),
+        git_project=local_project,
         auth={
             "browser": cookie_result.browser,
             "cookie_count": cookie_result.cookie_count,

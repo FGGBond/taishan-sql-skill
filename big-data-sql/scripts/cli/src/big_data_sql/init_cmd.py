@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from .client import PlatformClient
-from .config import DEFAULT_GIT_PROJECT_ID, Settings, load_settings
+from .config import Settings, load_settings
 from .normalize import failure, success
 from .profile_store import profile_path, profile_status, save_profile
+from .project_info import extract_local_project, resolve_git_project_for_init
 
 
 def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[str, Any]:
@@ -25,13 +26,25 @@ def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[s
             next_action="run",
         )
 
-    git_project_id = settings.profile.git_project_id or DEFAULT_GIT_PROJECT_ID
+    git_project_id, resolve_error = resolve_git_project_for_init(
+        settings, use_saved_profile=not force
+    )
+    if resolve_error:
+        return resolve_error
+    if not git_project_id:
+        return failure(
+            "GIT_PROJECT_UNAVAILABLE",
+            "未获取到 git project id。请登录 dp.jd.com 后重试，或设置 BDP_SQL_GIT_PROJECT_ID。",
+            next_action="doctor",
+        )
+
     client = PlatformClient(settings)
     resp = client.add_script(git_project_id)
     if not resp.get("ok", True) and "error_code" in resp:
         return failure(
             str(resp.get("error_code") or "INIT_FAILED"),
             str(resp.get("message") or "创建脚本失败"),
+            git_project_id=git_project_id,
             next_action="doctor",
         )
 
@@ -53,7 +66,6 @@ def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[s
         source="addScript",
     )
 
-    # 刷新 settings 中的 profile（当前进程内后续调用需要新 ID）
     refreshed = load_settings()
 
     return success(

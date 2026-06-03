@@ -28,6 +28,13 @@ class PlatformClient:
             track_action="get_login_user" if track else None,
         )
 
+    def get_erp_local_project(self, *, track: bool = True) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"{self.settings.dp_base_url}/scriptcenter/project/getErpLocalProject.ajax",
+            track_action="get_erp_local_project" if track else None,
+        )
+
     def add_script(self, git_project_id: str) -> dict[str, Any]:
         profile = self.settings.profile
         body = {

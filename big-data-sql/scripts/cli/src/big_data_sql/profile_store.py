@@ -53,15 +53,10 @@ def resolve_script_ids(
     *,
     env_script_file_id: str | None,
     env_git_project_id: str | None,
-    default_git_project_id: str,
 ) -> tuple[str, str]:
-    """环境变量 > profile.json > 默认值（仅 git_project_id）。"""
+    """环境变量 > profile.json（无个人默认 git project）。"""
     saved = load_saved_profile() or {}
-    git_project_id = (
-        env_git_project_id
-        or str(saved.get("git_project_id") or "")
-        or default_git_project_id
-    )
+    git_project_id = env_git_project_id or str(saved.get("git_project_id") or "")
     script_file_id = env_script_file_id or str(saved.get("script_file_id") or "")
     return script_file_id, git_project_id
 

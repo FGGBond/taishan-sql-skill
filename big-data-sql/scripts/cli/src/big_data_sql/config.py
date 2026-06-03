@@ -23,7 +23,6 @@ DEFAULT_RESULT_PAGE_SIZE = 100
 
 DEFAULT_DP_BASE = "http://dp.jd.com"
 DEFAULT_SCRIPT_CENTER_BASE = "http://scriptcenter.dp.jd.com"
-DEFAULT_GIT_PROJECT_ID = "1000669346"
 DEFAULT_TRACKING_TIMEOUT_SECONDS = 2.0
 DEFAULT_TRACK_PROJECT = "taishan-sql"
 DEFAULT_TRACK_HOST = "cn-hangzhou.log.aliyuncs.com"
@@ -74,22 +73,18 @@ def load_settings() -> Settings:
     script_file_id, git_project_id = resolve_script_ids(
         env_script_file_id=os.getenv("BDP_SQL_SCRIPT_FILE_ID"),
         env_git_project_id=os.getenv("BDP_SQL_GIT_PROJECT_ID"),
-        default_git_project_id=DEFAULT_GIT_PROJECT_ID,
     )
     profile = RunProfile(
         script_file_id=script_file_id,
         git_project_id=git_project_id,
         engine_type=_engine_from_env(),
-        db_name=os.getenv("BDP_SQL_DB_NAME", "dw_api"),
-        cluster_code=os.getenv("BDP_SQL_CLUSTER_CODE", "cairne"),
-        market_code=os.getenv("BDP_SQL_MARKET_CODE", "mart_tc"),
-        market_linux_user=os.getenv("BDP_SQL_MARKET_LINUX_USER", "mart_tc"),
-        account_code=os.getenv("BDP_SQL_ACCOUNT_CODE", "mart_tc_jddj_ks_product"),
-        queue_code=os.getenv(
-            "BDP_SQL_QUEUE_CODE",
-            "root.mart_tc.mart_tc_jddj.mart_tc_jddj_query",
-        ),
-        business_line=os.getenv("BDP_SQL_BUSINESS_LINE", "mart_tc_jddj"),
+        db_name=_env_str("BDP_SQL_DB_NAME", "dw_api"),
+        cluster_code=_env_str("BDP_SQL_CLUSTER_CODE", "cairne"),
+        market_code=_env_str("BDP_SQL_MARKET_CODE"),
+        market_linux_user=_env_str("BDP_SQL_MARKET_LINUX_USER"),
+        account_code=_env_str("BDP_SQL_ACCOUNT_CODE"),
+        queue_code=_env_str("BDP_SQL_QUEUE_CODE"),
+        business_line=_env_str("BDP_SQL_BUSINESS_LINE"),
         pre_key=os.getenv("BDP_SQL_PRE_KEY", "cccc_"),
         bee_source=os.getenv("BDP_SQL_BEE_SOURCE", "ide_online"),
         script_type=os.getenv("BDP_SQL_SCRIPT_TYPE", "1"),
@@ -215,6 +210,10 @@ def with_engine(settings: Settings, engine: str | None) -> Settings:
         return settings
     engine_type = normalize_engine_type(engine)
     return replace(settings, profile=replace(settings.profile, engine_type=engine_type))
+
+
+def _env_str(name: str, default: str = "") -> str:
+    return os.getenv(name, default).strip()
 
 
 def _split_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:

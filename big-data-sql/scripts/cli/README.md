@@ -14,7 +14,7 @@ bash scripts/big-data-sql doctor
 ## Commands
 
 - `doctor` — check browser auth and configuration
-- `init` — create a dedicated script via `addScript` and save `profile.json` (run once, or `init --force` to recreate)
+- `init` — resolve your ERP local git project (`getErpLocalProject`), then `addScript` and save `profile.json` (run once, or `init --force` to recreate)
 - `run --sql "<sql>"` — submit and wait for results (default, engine `presto`)
 - `run --sql "<sql>" --engine spark` — use Spark (`engineType`; also `doris`)
 - `run --sql "<sql>" --no-wait` — submit only, then use `poll`
