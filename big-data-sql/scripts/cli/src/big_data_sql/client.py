@@ -10,7 +10,9 @@ from urllib.request import Request, urlopen
 
 from .auth import AuthError, auth_headers
 from .config import RunProfile, Settings, load_settings
+from .http_util import ssl_context
 from .normalize import failure
+from .tracking import track_api_call
 
 
 class PlatformClient:
@@ -18,6 +20,13 @@ class PlatformClient:
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or load_settings()
+
+    def get_login_user(self, *, track: bool = True) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"{self.settings.dp_base_url}/request/portal/common/loginUser",
+            track_action="get_login_user" if track else None,
+        )
 
     def add_script(self, git_project_id: str) -> dict[str, Any]:
         profile = self.settings.profile
@@ -38,6 +47,7 @@ class PlatformClient:
             f"{self.settings.dp_base_url}/scriptcenter/script/addScript.ajax",
             headers={"Content-Type": "application/json;charset=UTF-8"},
             body=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            track_action="add_script",
         )
 
     def save_content(self, content: str, script_file_id: str) -> dict[str, Any]:
@@ -48,6 +58,7 @@ class PlatformClient:
             body=json.dumps({"content": content, "id": script_file_id}, ensure_ascii=False).encode(
                 "utf-8"
             ),
+            track_action="save_content",
         )
 
     def script_right_check(self, content: str, profile: RunProfile) -> dict[str, Any]:
@@ -58,6 +69,7 @@ class PlatformClient:
             f"{self.settings.dp_base_url}/scriptcenter/check/scriptRightCheck.ajax",
             headers={"Content-Type": content_type},
             body=body,
+            track_action="script_right_check",
         )
 
     def run_sql(self, content: str, profile: RunProfile) -> dict[str, Any]:
@@ -65,6 +77,7 @@ class PlatformClient:
         return self._request_form(
             f"{self.settings.dp_base_url}/scriptcenter/script/run.ajax",
             fields,
+            track_action="run_sql",
         )
 
     def poll_runtime_log(
@@ -89,12 +102,14 @@ class PlatformClient:
         return self._request_form(
             f"{self.settings.script_center_base_url}/scriptcenter/script/runTimeLogV2.ajax",
             fields,
+            track_action="poll_runtime_log",
         )
 
     def fetch_title(self, run_detail_id: str, pre_key: str) -> dict[str, Any]:
         return self._request_form(
             f"{self.settings.dp_base_url}/scriptcenter/script/title.ajax",
             {"runDetailId": run_detail_id, "preKey": pre_key},
+            track_action="fetch_title",
         )
 
     def fetch_run_data(
@@ -113,6 +128,7 @@ class PlatformClient:
                 "page": str(page),
                 "preKey": pre_key,
             },
+            track_action="fetch_run_data",
         )
 
     def _run_form_fields(self, content: str, profile: RunProfile) -> dict[str, str]:
@@ -137,13 +153,20 @@ class PlatformClient:
             "marketCode": profile.market_code,
         }
 
-    def _request_form(self, url: str, fields: dict[str, str]) -> dict[str, Any]:
+    def _request_form(
+        self,
+        url: str,
+        fields: dict[str, str],
+        *,
+        track_action: str | None = None,
+    ) -> dict[str, Any]:
         body = urlencode(fields).encode("utf-8")
         return self._request_json(
             "POST",
             url,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             body=body,
+            track_action=track_action,
         )
 
     def _request_json(
@@ -153,14 +176,19 @@ class PlatformClient:
         *,
         headers: dict[str, str] | None = None,
         body: bytes | None = None,
+        track_action: str | None = None,
     ) -> dict[str, Any]:
+        if track_action and track_action != "get_login_user":
+            track_api_call(track_action, self.settings)
         started = time.monotonic()
         try:
             request_headers = self._common_headers()
             if headers:
                 request_headers.update(headers)
             request = Request(url, data=body, headers=request_headers, method=method)
-            with urlopen(request, timeout=self.settings.timeout_seconds) as response:
+            with urlopen(
+                request, timeout=self.settings.timeout_seconds, context=ssl_context()
+            ) as response:
                 raw_body = response.read().decode("utf-8")
         except AuthError as exc:
             return failure("AUTH_UNAVAILABLE", str(exc))

@@ -12,6 +12,8 @@ from .init_cmd import run_init
 from .normalize import failure, success
 from .profile_store import profile_status
 from .runner import SqlRunner
+from .tracking import track_cli_command
+from .user_info import get_user_erp
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -22,6 +24,7 @@ def main(argv: list[str] | None = None) -> None:
         parser.print_help()
         return
 
+    track_cli_command(args.command)
     result = args.handler(args)
     print_json(result)
     if not result.get("ok", False) and result.get("status") != "running":
@@ -90,6 +93,7 @@ def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
     return success(
         status="ready",
         message="认证与配置检查通过",
+        erp=get_user_erp(settings),
         auth={
             "browser": cookie_result.browser,
             "cookie_count": cookie_result.cookie_count,

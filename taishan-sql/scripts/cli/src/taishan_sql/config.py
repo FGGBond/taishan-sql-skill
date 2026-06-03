@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 
 
+SKILL_ID = "taishan-sql"
+
 DEFAULT_COOKIE_DOMAINS = ("dbsv5api.jd.com",)
 DEFAULT_BROWSERS = ("edge", "chrome")
 DEFAULT_TIMEOUT_SECONDS = 30

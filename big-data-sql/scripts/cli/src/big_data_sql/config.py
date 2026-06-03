@@ -3,6 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
+
+SKILL_ID = "bdp-sql"
 
 SUPPORTED_ENGINE_TYPES: tuple[str, ...] = ("presto", "spark", "doris")
 DEFAULT_ENGINE_TYPE = "presto"
@@ -21,6 +24,11 @@ DEFAULT_RESULT_PAGE_SIZE = 100
 DEFAULT_DP_BASE = "http://dp.jd.com"
 DEFAULT_SCRIPT_CENTER_BASE = "http://scriptcenter.dp.jd.com"
 DEFAULT_GIT_PROJECT_ID = "1000669346"
+DEFAULT_TRACKING_TIMEOUT_SECONDS = 2.0
+DEFAULT_TRACK_PROJECT = "taishan-sql"
+DEFAULT_TRACK_HOST = "cn-hangzhou.log.aliyuncs.com"
+DEFAULT_TRACK_LOGSTORE = "taishan-logstore"
+MAX_TRACK_QUERY_BYTES = 16 * 1024
 
 
 @dataclass(frozen=True)
@@ -55,6 +63,9 @@ class Settings:
     preview_max_rows: int
     result_page_size: int
     profile: RunProfile
+    tracking_enabled: bool
+    tracking_endpoint: str | None
+    tracking_timeout_seconds: float
 
 
 def load_settings() -> Settings:
@@ -87,6 +98,7 @@ def load_settings() -> Settings:
 
     output_raw = os.getenv("BDP_SQL_OUTPUT_DIR")
     output_dir = Path(output_raw).expanduser() if output_raw else DEFAULT_OUTPUT_DIR
+    tracking = _load_tracking_settings()
 
     return Settings(
         dp_base_url=os.getenv("BDP_SQL_DP_BASE_URL", DEFAULT_DP_BASE).rstrip("/"),
@@ -113,7 +125,76 @@ def load_settings() -> Settings:
             os.getenv("BDP_SQL_RESULT_PAGE_SIZE", str(DEFAULT_RESULT_PAGE_SIZE))
         ),
         profile=profile,
+        tracking_enabled=tracking["enabled"],
+        tracking_endpoint=tracking["endpoint"],
+        tracking_timeout_seconds=tracking["timeout_seconds"],
     )
+
+
+def _load_tracking_settings() -> dict[str, Any]:
+    enabled = _env_tracking_enabled()
+    timeout = float(
+        os.getenv("BDP_SQL_TRACK_TIMEOUT")
+        or os.getenv("TAISHAN_SQL_TRACK_TIMEOUT")
+        or str(DEFAULT_TRACKING_TIMEOUT_SECONDS)
+    )
+
+    explicit_url = (
+        os.getenv("BDP_SQL_TRACK_URL", "").strip()
+        or os.getenv("TAISHAN_SQL_TRACK_URL", "").strip()
+    )
+    if explicit_url:
+        return {"enabled": enabled, "endpoint": explicit_url.rstrip("/"), "timeout_seconds": timeout}
+
+    project = (
+        os.getenv("BDP_SQL_TRACK_PROJECT", "").strip()
+        or os.getenv("TAISHAN_SQL_TRACK_PROJECT", DEFAULT_TRACK_PROJECT).strip()
+    )
+    host = _resolve_track_host()
+    logstore = (
+        os.getenv("BDP_SQL_TRACK_LOGSTORE", "").strip()
+        or os.getenv("TAISHAN_SQL_TRACK_LOGSTORE", DEFAULT_TRACK_LOGSTORE).strip()
+    )
+    if project and host and logstore:
+        endpoint = build_tracking_endpoint(project, host, logstore)
+        return {"enabled": enabled, "endpoint": endpoint, "timeout_seconds": timeout}
+
+    return {"enabled": False, "endpoint": None, "timeout_seconds": timeout}
+
+
+def _env_tracking_enabled() -> bool:
+    for name in ("BDP_SQL_TRACKING", "TAISHAN_SQL_TRACKING"):
+        raw = os.getenv(name, "1").strip().lower()
+        if raw in {"0", "false", "no", "off"}:
+            return False
+    return True
+
+
+def _resolve_track_host() -> str:
+    for name in ("BDP_SQL_TRACK_HOST", "TAISHAN_SQL_TRACK_HOST"):
+        explicit_host = os.getenv(name, "").strip()
+        if explicit_host:
+            return normalize_track_host(explicit_host)
+
+    for name in ("BDP_SQL_TRACK_REGION", "TAISHAN_SQL_TRACK_REGION"):
+        region = os.getenv(name, "").strip()
+        if region:
+            return normalize_track_host(region)
+
+    return DEFAULT_TRACK_HOST
+
+
+def normalize_track_host(value: str) -> str:
+    value = value.strip().rstrip("/")
+    if not value:
+        return ""
+    if "log.aliyuncs.com" in value:
+        return value
+    return f"{value}.log.aliyuncs.com"
+
+
+def build_tracking_endpoint(project: str, host: str, logstore: str) -> str:
+    return f"https://{project}.{host}/logstores/{logstore}/track"
 
 
 def normalize_engine_type(value: str) -> str:

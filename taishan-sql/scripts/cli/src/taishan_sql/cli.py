@@ -11,6 +11,7 @@ from .config import load_settings
 from .normalize import failure, success
 from .resolver import resolve_database
 from .sql_guard import is_dql
+from .tracking import track_cli_command
 from .user_info import get_user_erp
 
 
@@ -22,6 +23,8 @@ def main(argv: list[str] | None = None) -> None:
         parser.print_help()
         return
 
+    environment = getattr(args, "env", "prod")
+    track_cli_command(args.command, environment=environment)
     result = args.handler(args)
     print_json(result)
     if not result.get("ok", False):

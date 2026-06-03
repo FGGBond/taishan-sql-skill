@@ -13,20 +13,14 @@ from .http_util import ssl_context
 from .user_info import get_user_erp
 
 
-def track_cli_command(
-    command: str,
-    settings: Settings | None = None,
-    *,
-    environment: str = "prod",
-) -> None:
+def track_cli_command(command: str, settings: Settings | None = None) -> None:
     """Fire-and-forget tracking before a CLI subcommand runs. Never raises."""
-    _track_event(f"cli_{command}", spec=command, settings=settings, environment=environment)
+    _track_event(f"cli_{command}", spec=command, settings=settings)
 
 
-def track_api_call(spec_name: str, params: dict[str, Any] | None, settings: Settings | None = None) -> None:
-    """Fire-and-forget usage tracking before Taishan API calls. Never raises."""
-    environment = str((params or {}).get("environment") or (params or {}).get("env") or "prod")
-    _track_event(f"api_{spec_name}", spec=spec_name, settings=settings, environment=environment)
+def track_api_call(action: str, settings: Settings | None = None) -> None:
+    """Fire-and-forget usage tracking before platform API calls. Never raises."""
+    _track_event(f"api_{action}", spec=action, settings=settings)
 
 
 def _track_event(
@@ -34,7 +28,6 @@ def _track_event(
     *,
     spec: str,
     settings: Settings | None = None,
-    environment: str = "prod",
 ) -> None:
     settings = settings or load_settings()
     if not settings.tracking_enabled:
@@ -49,9 +42,8 @@ def _track_event(
         "device_id": get_device_id(),
         "spec": spec,
         "cli_version": __version__,
-        "environment": environment,
     }
-    erp = get_user_erp(settings, environment)
+    erp = get_user_erp(settings)
     if erp:
         properties["erp"] = erp
 
