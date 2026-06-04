@@ -68,8 +68,9 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    from .profile_store import resolve_script_ids
+    from .profile_store import load_saved_profile, resolve_script_ids
 
+    saved = load_saved_profile() or {}
     script_file_id, git_project_id = resolve_script_ids(
         env_script_file_id=os.getenv("BDP_SQL_SCRIPT_FILE_ID"),
         env_git_project_id=os.getenv("BDP_SQL_GIT_PROJECT_ID"),
@@ -79,12 +80,12 @@ def load_settings() -> Settings:
         git_project_id=git_project_id,
         engine_type=_engine_from_env(),
         db_name=_env_str("BDP_SQL_DB_NAME", "dw_api"),
-        cluster_code=_env_str("BDP_SQL_CLUSTER_CODE", "cairne"),
-        market_code=_env_str("BDP_SQL_MARKET_CODE"),
-        market_linux_user=_env_str("BDP_SQL_MARKET_LINUX_USER"),
-        account_code=_env_str("BDP_SQL_ACCOUNT_CODE"),
-        queue_code=_env_str("BDP_SQL_QUEUE_CODE"),
-        business_line=_env_str("BDP_SQL_BUSINESS_LINE"),
+        cluster_code=_profile_str("BDP_SQL_CLUSTER_CODE", saved, "cluster_code", "cairne"),
+        market_linux_user=_profile_str("BDP_SQL_MARKET_LINUX_USER", saved, "market_linux_user"),
+        market_code=_market_code_from_env_or_profile(saved),
+        account_code=_profile_str("BDP_SQL_ACCOUNT_CODE", saved, "account_code"),
+        queue_code=_profile_str("BDP_SQL_QUEUE_CODE", saved, "queue_code"),
+        business_line=_profile_str("BDP_SQL_BUSINESS_LINE", saved, "business_line"),
         pre_key=os.getenv("BDP_SQL_PRE_KEY", "cccc_"),
         bee_source=os.getenv("BDP_SQL_BEE_SOURCE", "ide_online"),
         script_type=os.getenv("BDP_SQL_SCRIPT_TYPE", "1"),
@@ -214,6 +215,24 @@ def with_engine(settings: Settings, engine: str | None) -> Settings:
 
 def _env_str(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
+
+
+def _profile_str(env_name: str, saved: dict[str, Any], profile_key: str, default: str = "") -> str:
+    env_val = os.getenv(env_name, "").strip()
+    if env_val:
+        return env_val
+    saved_val = str(saved.get(profile_key) or "").strip()
+    if saved_val:
+        return saved_val
+    return default
+
+
+def _market_code_from_env_or_profile(saved: dict[str, Any]) -> str:
+    code = _profile_str("BDP_SQL_MARKET_CODE", saved, "market_code")
+    if code:
+        return code
+    linux = _profile_str("BDP_SQL_MARKET_LINUX_USER", saved, "market_linux_user")
+    return linux
 
 
 def _split_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:

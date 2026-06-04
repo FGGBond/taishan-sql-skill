@@ -70,7 +70,8 @@ bash scripts/big-data-sql init
 
 - Resolves **your** ERP local git project via `getErpLocalProject.ajax` (not a shared default id).
 - Creates a dedicated script via platform `addScript` and saves `~/.config/big-data-sql/profile.json`.
-- Safe to rerun: skips if profile already exists.
+- Fetches **market / production account / queue** via `getMarketByErp.ajax` → `getAccountByErp4DQ.ajax` → `getQueueByErp.ajax` (linux user from ERP 集市列表，无需手填) and writes them into `profile.json` so colleagues need not set `BDP_SQL_MARKET_*` / `BDP_SQL_QUEUE_*` by hand.
+- Safe to rerun: skips if profile already exists; reruns without `--force` still **backfills** missing market/queue fields on old profiles.
 - Override git project: `BDP_SQL_GIT_PROJECT_ID=<id>` before `init`.
 - Use `bash scripts/big-data-sql init --force` if `run` fails with script/permission errors (creates a new `scriptFileId`).
 
@@ -251,19 +252,18 @@ Install / Python issues: same pattern as taishan-sql — rerun `bash scripts/ins
 | `BDP_SQL_OUTPUT_DIR` | `~/.cache/big-data-sql/runs` | Artifact root |
 | `BDP_SQL_PROFILE_PATH` | `~/.config/big-data-sql/profile.json` | Saved scriptFileId |
 | `BDP_SQL_GIT_PROJECT_ID` | (auto) | Override git project; default from `getErpLocalProject` per logged-in ERP |
-| `BDP_SQL_MARKET_CODE` | — | Production account market (required for `run` if not in platform default) |
-| `BDP_SQL_ACCOUNT_CODE` | — | Auth account for queue |
-| `BDP_SQL_QUEUE_CODE` | — | YARN queue code |
-| `BDP_SQL_BUSINESS_LINE` | — | Business line from queue |
+| `BDP_SQL_MARKET_LINUX_USER` | from profile | Linux 集市账号；`init` 未设置时由 API 推断 |
+| `BDP_SQL_MARKET_CODE` | from profile | 集市 code（通常与 linux user 相同） |
+| `BDP_SQL_ACCOUNT_CODE` | from profile | 生产账号 code（`getAccountByErp4DQ`） |
+| `BDP_SQL_QUEUE_CODE` | from profile | 队列 code（`getQueueByErp`） |
+| `BDP_SQL_BUSINESS_LINE` | from profile | 业务线（来自队列） |
 | `BDP_SQL_SCRIPT_FILE_ID` | from profile | Override script id (skips init if set) |
 | `BDP_SQL_WAIT_TIMEOUT` | `120` | `run --wait` max seconds before returning `running` |
 | `BDP_SQL_ENGINE_TYPE` | `presto` | Default engine when `--engine` omitted |
 | `BDP_SQL_CLUSTER_CODE` | `cairne` | Compute cluster |
 | `BDP_SQL_DB_NAME` | `dw_api` | Default schema |
-| `BDP_SQL_ACCOUNT_CODE` | (see config) | Auth account for queue |
-| `BDP_SQL_QUEUE_CODE` | (see config) | YARN/queue code |
 
-Override run target only when the user specifies a different集市/队列/集群.
+After `init`, market/queue fields live in `profile.json`. Override env vars only when the user needs a different 集市/队列/集群.
 
 ## What agents must NOT do
 

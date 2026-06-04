@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from .account_config import resolve_run_config_for_init
 from .client import PlatformClient
 from .config import Settings, load_settings
 from .normalize import failure, success
 from .profile_store import profile_path, profile_status, save_profile
-from .project_info import extract_local_project, resolve_git_project_for_init
+from .project_info import resolve_git_project_for_init
 
 
 def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[str, Any]:
@@ -14,6 +15,33 @@ def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[s
     status = profile_status()
 
     if status["initialized"] and not force:
+        needs_market = not (status.get("account_code") and status.get("queue_code"))
+        if needs_market:
+            run_config, run_error = resolve_run_config_for_init(
+                settings, use_saved_profile=False
+            )
+            if run_error:
+                return run_error
+            save_profile(
+                script_file_id=status["script_file_id"],
+                git_project_id=status["git_project_id"],
+                script_name=str(status.get("script_name") or ""),
+                source="accountConfig",
+                run_config=run_config,
+            )
+            return success(
+                status="initialized",
+                message="已补全 profile 中的集市/队列配置",
+                data={
+                    "script_file_id": status["script_file_id"],
+                    "git_project_id": status["git_project_id"],
+                    "market_linux_user": run_config.get("market_linux_user") if run_config else "",
+                    "account_code": run_config.get("account_code") if run_config else "",
+                    "queue_code": run_config.get("queue_code") if run_config else "",
+                },
+                files={"profile": status["profile_path"]},
+                next_action="run",
+            )
         return success(
             status="initialized",
             message="已有有效 profile，跳过创建。使用 init --force 可新建脚本文件。",
@@ -59,23 +87,32 @@ def run_init(*, force: bool = False, settings: Settings | None = None) -> dict[s
 
     resolved_git = str(obj.get("gitProjectId") or git_project_id)
     script_name = str(obj.get("name") or "")
+
+    run_config, run_error = resolve_run_config_for_init(settings, use_saved_profile=False)
+    if run_error:
+        return run_error
+
     saved_path = save_profile(
         script_file_id=script_file_id,
         git_project_id=resolved_git,
         script_name=script_name,
         source="addScript",
+        run_config=run_config,
     )
 
     refreshed = load_settings()
 
     return success(
         status="initialized",
-        message="已通过 addScript 创建 CLI 专用脚本并保存 profile",
+        message="已通过 addScript 创建 CLI 专用脚本并保存 profile（含集市/队列配置）",
         data={
             "script_file_id": script_file_id,
             "git_project_id": resolved_git,
             "script_name": script_name,
             "version": obj.get("version"),
+            "market_linux_user": run_config.get("market_linux_user") if run_config else "",
+            "account_code": run_config.get("account_code") if run_config else "",
+            "queue_code": run_config.get("queue_code") if run_config else "",
         },
         files={"profile": str(saved_path)},
         settings={

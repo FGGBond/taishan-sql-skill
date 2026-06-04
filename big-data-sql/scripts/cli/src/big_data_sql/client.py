@@ -35,6 +35,41 @@ class PlatformClient:
             track_action="get_erp_local_project" if track else None,
         )
 
+    def get_markets_by_erp(self, *, track: bool = True) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"{self.settings.dp_base_url}/scriptcenter/config/getMarketByErp.ajax",
+            track_action="get_markets_by_erp" if track else None,
+        )
+
+    def get_accounts_by_erp(self, linux_user: str | None = None, *, track: bool = True) -> dict[str, Any]:
+        query: dict[str, str] = {}
+        if linux_user:
+            query["linuxUser"] = linux_user
+        return self._request_json(
+            "GET",
+            f"{self.settings.dp_base_url}/scriptcenter/config/getAccountByErp4DQ.ajax",
+            query=query,
+            track_action="get_accounts_by_erp" if track else None,
+        )
+
+    def get_queues_by_erp(
+        self,
+        linux_user: str,
+        production_account_code: str,
+        *,
+        track: bool = True,
+    ) -> dict[str, Any]:
+        return self._request_json(
+            "GET",
+            f"{self.settings.dp_base_url}/scriptcenter/config/getQueueByErp.ajax",
+            query={
+                "linuxUser": linux_user,
+                "productionAccountCode": production_account_code,
+            },
+            track_action="get_queues_by_erp" if track else None,
+        )
+
     def add_script(self, git_project_id: str) -> dict[str, Any]:
         profile = self.settings.profile
         body = {
@@ -181,12 +216,17 @@ class PlatformClient:
         method: str,
         url: str,
         *,
+        query: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         body: bytes | None = None,
         track_action: str | None = None,
     ) -> dict[str, Any]:
         if track_action and track_action != "get_login_user":
             track_api_call(track_action, self.settings)
+        if query:
+            encoded = urlencode({k: v for k, v in query.items() if v})
+            if encoded:
+                url = f"{url}?{encoded}"
         started = time.monotonic()
         try:
             request_headers = self._common_headers()
