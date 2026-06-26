@@ -5,6 +5,7 @@ from http.cookiejar import CookieJar
 from typing import Iterable
 
 from .config import Settings, load_settings
+from . import session_store
 
 
 class AuthError(RuntimeError):
@@ -17,10 +18,87 @@ class CookieResult:
     domains: tuple[str, ...]
     cookie_header: str
     cookie_count: int
+    source: str = "browser"
 
 
-def load_browser_cookies(settings: Settings | None = None) -> CookieResult:
+_process_cache: dict[str, CookieResult] = {}
+_last_load_source: str = "browser"
+
+
+def load_browser_cookies(
+    settings: Settings | None = None,
+    *,
+    force_refresh: bool = False,
+) -> CookieResult:
+    global _last_load_source
     settings = settings or load_settings()
+    cache_key = session_store.settings_fingerprint(
+        browsers=settings.browsers,
+        cookie_domains=settings.cookie_domains,
+    )
+
+    if not force_refresh:
+        cached = _process_cache.get(cache_key)
+        if cached is not None:
+            _last_load_source = cached.source
+            return cached
+
+        session_data = session_store.load_session(
+            browsers=settings.browsers,
+            cookie_domains=settings.cookie_domains,
+        )
+        if session_data is not None:
+            result = CookieResult(
+                browser=str(session_data.get("browser") or settings.browsers[0]),
+                domains=settings.cookie_domains,
+                cookie_header=str(session_data["cookie_header"]),
+                cookie_count=int(session_data.get("cookie_count") or 0),
+                source="cache",
+            )
+            _process_cache[cache_key] = result
+            _last_load_source = "cache"
+            return result
+
+    result = _load_from_browser(settings)
+    _process_cache[cache_key] = result
+    _last_load_source = "browser"
+    if session_store.cache_enabled():
+        session_store.save_session(
+            browsers=settings.browsers,
+            cookie_domains=settings.cookie_domains,
+            browser=result.browser,
+            cookie_header=result.cookie_header,
+            cookie_count=result.cookie_count,
+        )
+    return result
+
+
+def auth_headers(settings: Settings | None = None) -> dict[str, str]:
+    result = load_browser_cookies(settings)
+    return {"Cookie": result.cookie_header}
+
+
+def invalidate_auth_cache(settings: Settings | None = None) -> None:
+    settings = settings or load_settings()
+    cache_key = session_store.settings_fingerprint(
+        browsers=settings.browsers,
+        cookie_domains=settings.cookie_domains,
+    )
+    _process_cache.pop(cache_key, None)
+    session_store.clear_session()
+
+
+def auth_cache_status(settings: Settings | None = None) -> dict[str, object]:
+    settings = settings or load_settings()
+    status = session_store.session_status(
+        browsers=settings.browsers,
+        cookie_domains=settings.cookie_domains,
+    )
+    status["last_source"] = _last_load_source
+    return status
+
+
+def _load_from_browser(settings: Settings) -> CookieResult:
     errors: list[str] = []
 
     for browser in settings.browsers:
@@ -33,6 +111,7 @@ def load_browser_cookies(settings: Settings | None = None) -> CookieResult:
                     domains=settings.cookie_domains,
                     cookie_header=cookie_header,
                     cookie_count=cookie_header.count("="),
+                    source="browser",
                 )
             errors.append(f"{browser}: 未找到匹配域名的 cookie")
         except Exception as exc:  # pragma: no cover - depends on local browser state
@@ -40,11 +119,6 @@ def load_browser_cookies(settings: Settings | None = None) -> CookieResult:
 
     joined = "; ".join(errors) if errors else "未配置浏览器"
     raise AuthError(f"无法从浏览器读取 Taishan 认证 cookie：{joined}")
-
-
-def auth_headers(settings: Settings | None = None) -> dict[str, str]:
-    result = load_browser_cookies(settings)
-    return {"Cookie": result.cookie_header}
 
 
 def _load_cookie_jar(browser: str, domains: tuple[str, ...]) -> CookieJar:

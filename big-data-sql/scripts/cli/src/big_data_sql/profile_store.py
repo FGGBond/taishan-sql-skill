@@ -51,16 +51,34 @@ def save_profile(
         for key in (
             "market_linux_user",
             "market_code",
+            "market_name",
             "account_code",
+            "account_name",
             "queue_code",
+            "queue_name",
             "business_line",
             "cluster_code",
+            "target_index",
         ):
             value = str(run_config.get(key) or "").strip()
             if value:
                 payload[key] = value
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def merge_run_config(run_config: dict[str, str]) -> Path | None:
+    """Update market/account/queue fields on an existing profile."""
+    existing = load_saved_profile()
+    if not existing or not existing.get("script_file_id"):
+        return None
+    return save_profile(
+        script_file_id=str(existing["script_file_id"]),
+        git_project_id=str(existing.get("git_project_id") or ""),
+        script_name=str(existing.get("script_name") or ""),
+        source=str(existing.get("source") or "targetSelect"),
+        run_config=run_config,
+    )
 
 
 def resolve_script_ids(
@@ -96,4 +114,8 @@ def profile_status() -> dict[str, Any]:
         "market_linux_user": str(saved.get("market_linux_user") or ""),
         "account_code": str(saved.get("account_code") or ""),
         "queue_code": str(saved.get("queue_code") or ""),
+        "target_index": saved.get("target_index"),
+        "market_name": str(saved.get("market_name") or ""),
+        "account_name": str(saved.get("account_name") or ""),
+        "queue_name": str(saved.get("queue_name") or ""),
     }

@@ -5,7 +5,7 @@ import json
 import sys
 from typing import Any
 
-from .auth import AuthError, load_browser_cookies
+from .auth import AuthError, auth_cache_status, invalidate_auth_cache, load_browser_cookies
 from .client import TaishanClient
 from .config import load_settings
 from .normalize import failure, success
@@ -39,6 +39,11 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     doctor = subparsers.add_parser("doctor", help="检查本地配置与浏览器认证状态")
+    doctor.add_argument(
+        "--refresh-auth",
+        action="store_true",
+        help="忽略本地 auth-session 缓存，强制从浏览器重新读取 Cookie",
+    )
     doctor.set_defaults(handler=handle_doctor)
 
     sources = subparsers.add_parser("sources", help="列出当前账号有权限的数据源根节点")
@@ -73,10 +78,11 @@ def add_env_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--env", choices=("prod", "test"), default="prod", help="执行环境，默认 prod")
 
 
-def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
+def handle_doctor(args: argparse.Namespace) -> dict[str, Any]:
     settings = load_settings()
+    force_refresh = bool(getattr(args, "refresh_auth", False))
     try:
-        cookie_result = load_browser_cookies(settings)
+        cookie_result = load_browser_cookies(settings, force_refresh=force_refresh)
     except AuthError as exc:
         return failure(
             "AUTH_UNAVAILABLE",
@@ -86,7 +92,26 @@ def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
                 "cookie_domains": settings.cookie_domains,
                 "specs_dir": str(settings.specs_dir),
             },
+            auth_cache=auth_cache_status(settings),
         )
+
+    erp = get_user_erp(settings)
+    if not erp and not force_refresh:
+        invalidate_auth_cache(settings)
+        try:
+            cookie_result = load_browser_cookies(settings, force_refresh=True)
+        except AuthError as exc:
+            return failure(
+                "AUTH_UNAVAILABLE",
+                str(exc),
+                settings={
+                    "browsers": settings.browsers,
+                    "cookie_domains": settings.cookie_domains,
+                    "specs_dir": str(settings.specs_dir),
+                },
+                auth_cache=auth_cache_status(settings),
+            )
+        erp = get_user_erp(settings)
 
     return success(
         {
@@ -94,8 +119,10 @@ def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
             "browser": cookie_result.browser,
             "cookie_count": cookie_result.cookie_count,
             "cookie_domains": cookie_result.domains,
+            "cookie_source": cookie_result.source,
+            "auth_cache": auth_cache_status(settings),
             "specs_dir": str(settings.specs_dir),
-            "erp": get_user_erp(settings),
+            "erp": erp,
         }
     )
 

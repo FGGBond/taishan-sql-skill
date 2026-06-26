@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .auth import AuthError, auth_headers
+from .auth import AuthError, auth_headers, invalidate_auth_cache, load_browser_cookies
 from .config import RunProfile, Settings, load_settings
 from .http_util import ssl_context
 from .normalize import failure
@@ -220,6 +220,43 @@ class PlatformClient:
         headers: dict[str, str] | None = None,
         body: bytes | None = None,
         track_action: str | None = None,
+        _auth_retry: bool = True,
+    ) -> dict[str, Any]:
+        result = self._request_json_once(
+            method,
+            url,
+            query=query,
+            headers=headers,
+            body=body,
+            track_action=track_action,
+        )
+        if not _auth_retry or not _should_retry_auth(result, track_action=track_action):
+            return result
+
+        invalidate_auth_cache(self.settings)
+        try:
+            load_browser_cookies(self.settings, force_refresh=True)
+        except AuthError:
+            return result
+
+        return self._request_json_once(
+            method,
+            url,
+            query=query,
+            headers=headers,
+            body=body,
+            track_action=track_action,
+        )
+
+    def _request_json_once(
+        self,
+        method: str,
+        url: str,
+        *,
+        query: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        body: bytes | None = None,
+        track_action: str | None = None,
     ) -> dict[str, Any]:
         if track_action and track_action != "get_login_user":
             track_api_call(track_action, self.settings)
@@ -272,6 +309,12 @@ class PlatformClient:
         }
         headers.update(auth_headers(self.settings))
         return headers
+
+
+def _should_retry_auth(result: dict[str, Any], *, track_action: str | None) -> bool:
+    if track_action in {None, "get_login_user"}:
+        return False
+    return result.get("error_code") == "HTTP_ERROR" and result.get("status") == 401
 
 
 def _api_ok(payload: dict[str, Any]) -> bool:

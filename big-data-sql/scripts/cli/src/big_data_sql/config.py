@@ -11,7 +11,12 @@ SUPPORTED_ENGINE_TYPES: tuple[str, ...] = ("presto", "spark", "doris")
 DEFAULT_ENGINE_TYPE = "presto"
 
 
-DEFAULT_COOKIE_DOMAINS = ("dp.jd.com", "scriptcenter.dp.jd.com", "jd.com")
+DEFAULT_COOKIE_DOMAINS = (
+    "dp.jd.com",
+    "scriptcenter.dp.jd.com",
+    "ide.scriptcenter.jd.com",
+    "jd.com",
+)
 DEFAULT_BROWSERS = ("edge", "chrome")
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_WAIT_TIMEOUT_SECONDS = 120
@@ -211,6 +216,23 @@ def with_engine(settings: Settings, engine: str | None) -> Settings:
         return settings
     engine_type = normalize_engine_type(engine)
     return replace(settings, profile=replace(settings.profile, engine_type=engine_type))
+
+
+def with_run_config(settings: Settings, run_config: dict[str, str]) -> Settings:
+    """Apply resolved market/account/queue onto Settings.profile for this run."""
+    profile = settings.profile
+    return replace(
+        settings,
+        profile=replace(
+            profile,
+            market_linux_user=run_config.get("market_linux_user", profile.market_linux_user),
+            market_code=run_config.get("market_code", profile.market_code),
+            account_code=run_config.get("account_code", profile.account_code),
+            queue_code=run_config.get("queue_code", profile.queue_code),
+            business_line=run_config.get("business_line", profile.business_line),
+            cluster_code=run_config.get("cluster_code", profile.cluster_code) or profile.cluster_code,
+        ),
+    )
 
 
 def _env_str(name: str, default: str = "") -> str:

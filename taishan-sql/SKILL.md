@@ -104,12 +104,18 @@ Optional environment variables:
 
 - `TAISHAN_SQL_BROWSER` — comma-separated browsers to try (`edge`, `chrome`, `firefox`, `safari`); default `edge,chrome`
 - `TAISHAN_SQL_COOKIE_DOMAINS` — cookie domains; default `dbsv5api.jd.com`
+- `TAISHAN_SQL_COOKIE_CACHE` — `1` (default) caches Cookie header to `~/.config/taishan-sql/auth-session.json` after first browser read; set `0` to always read browser
+- `TAISHAN_SQL_COOKIE_CACHE_TTL` — cache lifetime seconds (default `14400` / 4h); expired cache triggers browser re-read on next command
+- `TAISHAN_SQL_SESSION_PATH` — override auth session file path
 - `TAISHAN_SQL_SPECS_DIR` — override specs directory
 - `TAISHAN_SQL_TIMEOUT` — HTTP timeout seconds (default 30)
+
+Run `doctor --refresh-auth` to force a fresh browser read and rewrite the session file (e.g. after re-login or Keychain issues).
 
 ## Notes
 
 - Browser cookies are read locally from Edge or Chrome; never ask the user to paste cookies into chat.
+- After the first successful browser read, Cookie headers are cached locally (mode `0600`) to avoid repeated macOS Keychain prompts across Agent tool calls. Do not commit `auth-session.json`.
 - Do not store cookie, token, or ticket values in repository files.
 - The CLI blocks non-DQL SQL on `query`; the Taishan platform also enforces permissions server-side.
 - Prefer small, targeted SQL and include `LIMIT` for exploratory queries.

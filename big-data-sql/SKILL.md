@@ -47,7 +47,7 @@ Do **not** call platform HTTP APIs or curl directly. The CLI hides all HTTP step
 ## Standard workflow (follow in order)
 
 ```text
-doctor → init (once) → run → [poll if running] → read_file for full results
+doctor → list-targets (if multi-market) → init (once, select target) → run → [poll] → read_file
 ```
 
 ### Step 1 — `doctor`
@@ -58,33 +58,54 @@ bash scripts/big-data-sql doctor
 
 | stdout field | Action |
 |--------------|--------|
-| `ok: false`, `error_code: AUTH_UNAVAILABLE` | Ask user to log in to dp.jd.com in Edge/Chrome, then rerun `doctor` |
+| `ok: false`, `error_code: AUTH_UNAVAILABLE` | Ask user to log in to dp.jd.com in Edge/Chrome, then rerun `doctor --refresh-auth` |
+| `ok: false`, `error_code: SCRIPT_CENTER_UNAVAILABLE` | Read `failed_apis` / `api_checks` — scriptcenter APIs failed (often missing 脚本中心权限); user must enter 在线查询/脚本中心 on dp.jd.com or request access |
 | `profile.initialized: false` or `next_action: "init"` | Run `init` before `run` |
 | `ok: true`, `next_action: "run"` | Proceed |
 
-### Step 2 — `init` (first time or after profile errors)
+`doctor` probes three platform APIs and reports each in `api_checks` (`loginUser`, `getErpLocalProject`, `getMarketByErp`). On failure, `failed_apis` lists the broken endpoint names.
+
+### Step 2 — `list-targets` (when user has multiple markets/accounts)
+
+```bash
+bash scripts/big-data-sql list-targets
+```
+
+Enumerates every runnable **集市 × 生产账号(type=1) × 队列** for the logged-in ERP. If `count > 1`, **ask the user which row to use** before `init` / `run`.
+
+| `error_code` | Action |
+|--------------|--------|
+| `TARGET_SELECTION_REQUIRED` | Show `choices[]` (`index`, `label`, `account_code`, `queue_code`); user picks one |
+| `count: 1` | May proceed without asking |
+
+### Step 3 — `init` (first time or after profile errors)
 
 ```bash
 bash scripts/big-data-sql init
+bash scripts/big-data-sql init --target-index 2
+bash scripts/big-data-sql init --account-code mart_tc_jddj_ks_algo
 ```
 
 - Resolves **your** ERP local git project via `getErpLocalProject.ajax` (not a shared default id).
 - Creates a dedicated script via platform `addScript` and saves `~/.config/big-data-sql/profile.json`.
-- Fetches **market / production account / queue** via `getMarketByErp.ajax` → `getAccountByErp4DQ.ajax` → `getQueueByErp.ajax` (linux user from ERP 集市列表，无需手填) and writes them into `profile.json` so colleagues need not set `BDP_SQL_MARKET_*` / `BDP_SQL_QUEUE_*` by hand.
-- Safe to rerun: skips if profile already exists; reruns without `--force` still **backfills** missing market/queue fields on old profiles.
+- Fetches targets via `getMarketByErp` → `getAccountByErp4DQ` → `getQueueByErp` and saves the **selected** market/account/queue into `profile.json`.
+- **Only one target**: auto-selected. **Multiple targets**: returns `TARGET_SELECTION_REQUIRED` with `choices` until `--target-index` or `--account-code` is provided (TTY may prompt interactively).
+- Safe to rerun: skips script creation if profile exists; use `init --target-index N` to change saved target.
 - Override git project: `BDP_SQL_GIT_PROJECT_ID=<id>` before `init`.
 - Use `bash scripts/big-data-sql init --force` if `run` fails with script/permission errors (creates a new `scriptFileId`).
 
 Success envelope: `ok: true`, `status: "initialized"`, `next_action: "run"`.
 
-### Step 3 — `run`
+### Step 4 — `run`
 
 ```bash
 bash scripts/big-data-sql run --sql "<sql>"
+bash scripts/big-data-sql run --sql "<sql>" --target-index 2
 ```
 
 Optional:
 
+- `--target-index N` / `--account-code <code>` — required when multiple targets and not yet saved in profile
 - `--output-dir <dir>` — artifact root (default `~/.cache/big-data-sql/runs` or `BDP_SQL_OUTPUT_DIR`)
 - `--no-wait` — submit only; then use `poll` (long-running queries)
 - `--engine <presto|spark|doris>` — execution engine (`engineType` sent to the platform)
@@ -112,7 +133,7 @@ On failure with Presto memory errors in `logs.txt`, retry the **same SQL** with 
 - Avoid destructive DDL/DML unless the user explicitly requests it.
 - `SHOW CREATE TABLE db.table` and metadata queries are supported.
 
-### Step 4 — `poll` (only when needed)
+### Step 5 — `poll` (only when needed)
 
 ```bash
 bash scripts/big-data-sql poll --artifact-dir "<artifact_dir from run>"
@@ -233,8 +254,11 @@ Increase wait: `BDP_SQL_WAIT_TIMEOUT=300` (seconds).
 | Symptom | `error_code` / signal | Agent action |
 |---------|----------------------|--------------|
 | CLI not found | shell error | `cd` to skill root; `bash scripts/install.sh` |
-| `AUTH_UNAVAILABLE` | doctor / run | User logs into dp.jd.com in Edge/Chrome; `BDP_SQL_BROWSER=chrome` |
+| `AUTH_UNAVAILABLE` | doctor / run | User logs into dp.jd.com in Edge/Chrome; `BDP_SQL_BROWSER=chrome`; `doctor --refresh-auth` |
+| `SCRIPT_CENTER_UNAVAILABLE` | doctor | Check `failed_apis` and `cookie_checks` (`ssa.bdp` stale?); refresh browser session on dp.jd.com then `doctor --refresh-auth`; or `BDP_SQL_COOKIE_HEADER` from DevTools |
+| Stale `ssa.bdp` in cache | doctor `cookie_checks[].stale: true` | Browser works but CLI 401 — run `doctor --refresh-auth`; CLI auto-refreshes on 401 and validates cache vs browser |
 | `PROFILE_NOT_INITIALIZED` | run | `bash scripts/big-data-sql init` |
+| `TARGET_SELECTION_REQUIRED` | init / run | Run `list-targets`, ask user to pick `index`, then `init --target-index N` or `run --target-index N` |
 | `API_ERROR` on run after long idle | run | `init --force` then retry |
 | `status: "running"` forever | poll | Read `logs.txt`; ask user if query is too heavy; check queue permissions |
 | `SQL_EXEC_FAILED` | failed | Read `files.logs`; fix SQL or permissions; if Presto OOM/memory, retry `--engine spark` |
@@ -248,7 +272,11 @@ Install / Python issues: same pattern as taishan-sql — rerun `bash scripts/ins
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `BDP_SQL_BROWSER` | `edge,chrome` | Browsers for cookie extraction |
-| `BDP_SQL_COOKIE_DOMAINS` | `dp.jd.com,scriptcenter.dp.jd.com,jd.com` | Cookie domains |
+| `BDP_SQL_COOKIE_DOMAINS` | `dp.jd.com,scriptcenter.dp.jd.com,ide.scriptcenter.jd.com,jd.com` | Cookie domains |
+| `BDP_SQL_COOKIE_HEADER` | (unset) | Override: paste full `Cookie` header from DevTools (emergency workaround) |
+| `BDP_SQL_COOKIE_CACHE` | `1` | Cache Cookie header to `~/.config/big-data-sql/auth-session.json` (mode `0600`) |
+| `BDP_SQL_COOKIE_CACHE_TTL` | `14400` | Session cache lifetime (seconds); expired → browser re-read |
+| `BDP_SQL_SESSION_PATH` | `~/.config/big-data-sql/auth-session.json` | Override auth session file |
 | `BDP_SQL_OUTPUT_DIR` | `~/.cache/big-data-sql/runs` | Artifact root |
 | `BDP_SQL_PROFILE_PATH` | `~/.config/big-data-sql/profile.json` | Saved scriptFileId |
 | `BDP_SQL_GIT_PROJECT_ID` | (auto) | Override git project; default from `getErpLocalProject` per logged-in ERP |
@@ -264,6 +292,8 @@ Install / Python issues: same pattern as taishan-sql — rerun `bash scripts/ins
 | `BDP_SQL_DB_NAME` | `dw_api` | Default schema |
 
 After `init`, market/queue fields live in `profile.json`. Override env vars only when the user needs a different 集市/队列/集群.
+
+Run `doctor --refresh-auth` after SSO re-login to refresh the local auth session cache.
 
 ## What agents must NOT do
 

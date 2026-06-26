@@ -6,16 +6,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .auth import AuthError, load_browser_cookies
 from .config import SUPPORTED_ENGINE_TYPES, load_settings, with_engine
-from .client import PlatformClient
-from .init_cmd import run_init
-from .normalize import failure, success
+from .doctor_cmd import run_doctor
+from .init_cmd import ensure_run_target, run_init
+from .targets_cmd import run_list_targets
+from .normalize import failure
 from .profile_store import profile_status
 from .runner import SqlRunner
 from .tracking import track_cli_command
-from .project_info import extract_local_project
-from .user_info import get_user_erp
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -41,7 +39,18 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     doctor = subparsers.add_parser("doctor", help="检查浏览器认证与运行配置")
+    doctor.add_argument(
+        "--refresh-auth",
+        action="store_true",
+        help="忽略本地 auth-session 缓存，强制从浏览器重新读取 Cookie",
+    )
     doctor.set_defaults(handler=handle_doctor)
+
+    list_targets = subparsers.add_parser(
+        "list-targets",
+        help="列出当前 ERP 可用的集市/生产账号/队列组合",
+    )
+    list_targets.set_defaults(handler=handle_list_targets)
 
     init = subparsers.add_parser("init", help="创建 CLI 专用脚本并保存 scriptFileId")
     init.add_argument(
@@ -49,10 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="即使已有 profile 也重新 addScript 并覆盖",
     )
+    _add_target_selection_args(init)
     init.set_defaults(handler=handle_init)
 
     run = subparsers.add_parser("run", help="提交并执行 SQL")
     run.add_argument("--sql", required=True, help="需要执行的 SQL")
+    _add_target_selection_args(run)
     run.add_argument(
         "--output-dir",
         help="artifact 保存目录，默认 ~/.cache/big-data-sql/runs 或 BDP_SQL_OUTPUT_DIR",
@@ -80,38 +91,43 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def handle_doctor(_: argparse.Namespace) -> dict[str, Any]:
+def handle_doctor(args: argparse.Namespace) -> dict[str, Any]:
     settings = load_settings()
-    try:
-        cookie_result = load_browser_cookies(settings)
-    except AuthError as exc:
-        return failure(
-            "AUTH_UNAVAILABLE",
-            str(exc),
-            settings=_public_settings(settings),
-        )
-
-    prof = profile_status()
-    project_resp = PlatformClient(settings).get_erp_local_project(track=False)
-    local_project = extract_local_project(project_resp)
-    return success(
-        status="ready",
-        message="认证与配置检查通过",
-        erp=get_user_erp(settings),
-        git_project=local_project,
-        auth={
-            "browser": cookie_result.browser,
-            "cookie_count": cookie_result.cookie_count,
-            "cookie_domains": cookie_result.domains,
-        },
-        profile=prof,
-        settings=_public_settings(settings),
-        next_action="init" if not prof.get("initialized") else "run",
+    return run_doctor(
+        settings,
+        force_refresh=bool(getattr(args, "refresh_auth", False)),
+        public_settings=_public_settings(settings),
     )
 
 
+def _add_target_selection_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--target-index",
+        type=int,
+        metavar="N",
+        help="list-targets 返回的序号（多账号/队列时必选）",
+    )
+    parser.add_argument(
+        "--account-code",
+        help="生产账号 code，如 mart_tc_jddj_ks_algo（可替代 --target-index）",
+    )
+    parser.add_argument(
+        "--queue-code",
+        help="与 --account-code 联用，在多个队列时消歧",
+    )
+
+
+def handle_list_targets(_: argparse.Namespace) -> dict[str, Any]:
+    return run_list_targets()
+
+
 def handle_init(args: argparse.Namespace) -> dict[str, Any]:
-    return run_init(force=args.force)
+    return run_init(
+        force=args.force,
+        target_index=getattr(args, "target_index", None),
+        account_code=getattr(args, "account_code", None),
+        queue_code=getattr(args, "queue_code", None),
+    )
 
 
 def handle_run(args: argparse.Namespace) -> dict[str, Any]:
@@ -124,6 +140,14 @@ def handle_run(args: argparse.Namespace) -> dict[str, Any]:
             recoverable=False,
             supported_engines=list(SUPPORTED_ENGINE_TYPES),
         )
+    settings, target_error = ensure_run_target(
+        settings,
+        target_index=getattr(args, "target_index", None),
+        account_code=getattr(args, "account_code", None),
+        queue_code=getattr(args, "queue_code", None),
+    )
+    if target_error:
+        return target_error
     output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
     return SqlRunner(settings).run(
         args.sql,
